@@ -1,0 +1,36 @@
+[01mRunning Sphinx v8.1.3[39;49;00m
+[01mloading translations [en]... [39;49;00mdone
+[01mmaking output directory... [39;49;00mdone
+[91mWARNING: html_static_path entry '_static' does not exist[39;49;00m
+loading intersphinx inventory 'python' from https://docs.python.org/3/objects.inv ...
+[01mbuilding [mo]: [39;49;00mtargets for 0 po files that are out of date
+[01mwriting output... [39;49;00m
+[01mbuilding [html]: [39;49;00mtargets for 6 source files that are out of date
+[01mupdating environment: [39;49;00m[new config] 6 added, 0 changed, 0 removed
+[2K[01mreading sources... [39;49;00m[ 17%] [35mapi/cli[39;49;00m[2K[01mreading sources... [39;49;00m[ 33%] [35mapi/core[39;49;00m[2K[01mreading sources... [39;49;00m[ 50%] [35mapi/history[39;49;00m[2K[01mreading sources... [39;49;00m[ 67%] [35mguides/installation[39;49;00m[2K[01mreading sources... [39;49;00m[ 83%] [35mguides/usage[39;49;00m[2K[01mreading sources... [39;49;00m[100%] [35mindex[39;49;00m
+[91mC:\claude_proj\agenticCoding\calculator\src\calculator\history.py:docstring of calculator.history.HistoryEntry.expression:1: WARNING: duplicate object description of calculator.history.HistoryEntry.expression, other instance in api/history, use :no-index: for one of them[39;49;00m
+[91mC:\claude_proj\agenticCoding\calculator\src\calculator\history.py:docstring of calculator.history.HistoryEntry.result:1: WARNING: duplicate object description of calculator.history.HistoryEntry.result, other instance in api/history, use :no-index: for one of them[39;49;00m
+[91mC:\claude_proj\agenticCoding\calculator\src\calculator\history.py:docstring of calculator.history.HistoryEntry.timestamp:1: WARNING: duplicate object description of calculator.history.HistoryEntry.timestamp, other instance in api/history, use :no-index: for one of them[39;49;00m
+[01mlooking for now-outdated files... [39;49;00mnone found
+[01mpickling environment... [39;49;00mdone
+[01mchecking consistency... [39;49;00mdone
+[01mpreparing documents... [39;49;00mdone
+[01mcopying assets... [39;49;00m
+[01mcopying static files... [39;49;00m
+Writing evaluated template result to C:\claude_proj\agenticCoding\calculator\docs\_build\html\_static\basic.css
+Writing evaluated template result to C:\claude_proj\agenticCoding\calculator\docs\_build\html\_static\documentation_options.js
+Writing evaluated template result to C:\claude_proj\agenticCoding\calculator\docs\_build\html\_static\language_data.js
+Writing evaluated template result to C:\claude_proj\agenticCoding\calculator\docs\_build\html\_static\js\versions.js
+[01mcopying static files: [39;49;00mdone
+[01mcopying extra files... [39;49;00m
+[01mcopying extra files: [39;49;00mdone
+[01mcopying assets: [39;49;00mdone
+[2K[01mwriting output... [39;49;00m[ 17%] [32mapi/cli[39;49;00m[2K[01mwriting output... [39;49;00m[ 33%] [32mapi/core[39;49;00m[2K[01mwriting output... [39;49;00m[ 50%] [32mapi/history[39;49;00m[2K[01mwriting output... [39;49;00m[ 67%] [32mguides/installation[39;49;00m[2K[01mwriting output... [39;49;00m[ 83%] [32mguides/usage[39;49;00m[2K[01mwriting output... [39;49;00m[100%] [32mindex[39;49;00m
+[01mgenerating indices... [39;49;00mgenindex py-modindex done
+[2K[01mhighlighting module code... [39;49;00m[ 33%] [94mcalculator.cli[39;49;00m[2K[01mhighlighting module code... [39;49;00m[ 67%] [94mcalculator.core[39;49;00m[2K[01mhighlighting module code... [39;49;00m[100%] [94mcalculator.history[39;49;00m
+[01mwriting additional pages... [39;49;00msearch done
+[01mdumping search index in English (code: en)... [39;49;00mdone
+[01mdumping object inventory... [39;49;00mdone
+[01mbuild succeeded, 4 warnings.[39;49;00m
+
+The HTML pages are in _build\html.
