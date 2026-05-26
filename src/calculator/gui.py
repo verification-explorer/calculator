@@ -4,6 +4,7 @@ This module provides a GUI that uses the existing core and history modules,
 demonstrating the separation of concerns in the calculator architecture.
 """
 
+import math
 import sys
 from typing import Optional
 
@@ -60,6 +61,10 @@ class CalculatorButton(QPushButton):
             return "#e4e4e2"
         elif color == "#ff3b30":
             return "#ff5a50"
+        elif color == "#5856d6":
+            return "#6866e6"
+        elif color == "#3a3a3a":
+            return "#4a4a4a"
         return color
 
     def _darken(self, color: str) -> str:
@@ -72,6 +77,10 @@ class CalculatorButton(QPushButton):
             return "#c4c4c2"
         elif color == "#ff3b30":
             return "#dd2a20"
+        elif color == "#5856d6":
+            return "#4846c6"
+        elif color == "#3a3a3a":
+            return "#2a2a2a"
         return color
 
 
@@ -83,6 +92,8 @@ class CalculatorWindow(QMainWindow):
         self.history = CalculationHistory()
         self.current_input = ""
         self.last_result: Optional[float] = None
+        self.inverse_mode = False
+        self.degrees_mode = False
         self._setup_ui()
         self._setup_shortcuts()
 
@@ -139,6 +150,31 @@ class CalculatorWindow(QMainWindow):
             btn = CalculatorButton(text, color)
             btn.clicked.connect(lambda checked, t=text: self._on_button_click(t))
             button_layout.addWidget(btn, row, col)
+
+        trig_grid = QGridLayout()
+        trig_grid.setSpacing(8)
+
+        self.sin_btn = CalculatorButton("sin", "#5856d6")
+        self.sin_btn.clicked.connect(lambda: self._calculate_trig("sin"))
+        trig_grid.addWidget(self.sin_btn, 0, 0)
+
+        self.cos_btn = CalculatorButton("cos", "#5856d6")
+        self.cos_btn.clicked.connect(lambda: self._calculate_trig("cos"))
+        trig_grid.addWidget(self.cos_btn, 1, 0)
+
+        self.tan_btn = CalculatorButton("tan", "#5856d6")
+        self.tan_btn.clicked.connect(lambda: self._calculate_trig("tan"))
+        trig_grid.addWidget(self.tan_btn, 2, 0)
+
+        self.inv_btn = CalculatorButton("inv", "#5856d6")
+        self.inv_btn.clicked.connect(self._toggle_inverse)
+        trig_grid.addWidget(self.inv_btn, 3, 0)
+
+        self.rad_btn = CalculatorButton("rad", "#5856d6")
+        self.rad_btn.clicked.connect(self._toggle_degrees)
+        trig_grid.addWidget(self.rad_btn, 4, 0)
+
+        button_layout.addLayout(trig_grid, 0, 4, 5, 1)
 
         calc_layout.addLayout(button_layout)
         main_layout.addLayout(calc_layout, stretch=2)
@@ -263,6 +299,115 @@ class CalculatorWindow(QMainWindow):
             self.display.setText("Error")
             self.expression_label.setText(str(e))
             self.current_input = ""
+
+    def _calculate_trig(self, func: str):
+        """Calculate trigonometric function of current input."""
+        if not self.current_input:
+            return
+
+        try:
+            n = float(self.current_input)
+            if self.inverse_mode:
+                func_name = f"a{func}"
+                trig_funcs = {"asin": core.asin, "acos": core.acos, "atan": core.atan}
+                result = trig_funcs[func_name](n)
+                if self.degrees_mode:
+                    result = math.degrees(result)
+            else:
+                func_name = func
+                trig_funcs = {"sin": core.sin, "cos": core.cos, "tan": core.tan}
+                if self.degrees_mode:
+                    n = math.radians(n)
+                result = trig_funcs[func_name](n)
+
+            unit = "°" if self.degrees_mode else ""
+            expr = f"{func_name}({self.current_input}{unit})"
+            self.expression_label.setText(f"{expr} =")
+            self.display.setText(self._format_result(result))
+            self.history.add(expr, result)
+            self._update_history_list()
+            self.current_input = str(result)
+            self.last_result = result
+        except ValueError as e:
+            self.display.setText("Error")
+            self.expression_label.setText(str(e))
+            self.current_input = ""
+
+    def _toggle_inverse(self):
+        """Toggle inverse mode for trig functions."""
+        self.inverse_mode = not self.inverse_mode
+        if self.inverse_mode:
+            self.sin_btn.setText("asin")
+            self.cos_btn.setText("acos")
+            self.tan_btn.setText("atan")
+            self.inv_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #7876f6;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                }
+                QPushButton:hover {
+                    background-color: #8886ff;
+                }
+                QPushButton:pressed {
+                    background-color: #6866e6;
+                }
+            """)
+        else:
+            self.sin_btn.setText("sin")
+            self.cos_btn.setText("cos")
+            self.tan_btn.setText("tan")
+            self.inv_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #5856d6;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                }
+                QPushButton:hover {
+                    background-color: #6866e6;
+                }
+                QPushButton:pressed {
+                    background-color: #4846c6;
+                }
+            """)
+
+    def _toggle_degrees(self):
+        """Toggle between radians and degrees mode."""
+        self.degrees_mode = not self.degrees_mode
+        if self.degrees_mode:
+            self.rad_btn.setText("deg")
+            self.rad_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #7876f6;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                }
+                QPushButton:hover {
+                    background-color: #8886ff;
+                }
+                QPushButton:pressed {
+                    background-color: #6866e6;
+                }
+            """)
+        else:
+            self.rad_btn.setText("rad")
+            self.rad_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #5856d6;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                }
+                QPushButton:hover {
+                    background-color: #6866e6;
+                }
+                QPushButton:pressed {
+                    background-color: #4846c6;
+                }
+            """)
 
     def _evaluate_expression(self, expr: str) -> float:
         """Evaluate a simple binary expression."""

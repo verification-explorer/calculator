@@ -155,3 +155,85 @@ def modulo(a: Number, b: Number) -> Number:
     if b == 0:
         raise ValueError("Cannot perform modulo by zero")
     return a % b
+
+
+def sin(n: Number) -> float:
+    """Calculate the sine of an angle in radians.
+
+    Args:
+        n: The angle in radians.
+
+    Returns:
+        The sine of n.
+    """
+    return math.sin(n)
+
+
+def cos(n: Number) -> float:
+    """Calculate the cosine of an angle in radians.
+
+    Args:
+        n: The angle in radians.
+
+    Returns:
+        The cosine of n.
+    """
+    return math.cos(n)
+
+
+def tan(n: Number) -> float:
+    """Calculate the tangent of an angle in radians.
+
+    Args:
+        n: The angle in radians.
+
+    Returns:
+        The tangent of n.
+    """
+    return math.tan(n)
+
+
+def asin(n: Number) -> float:
+    """Calculate the arc sine (inverse sine) of a number.
+
+    Args:
+        n: The value (must be between -1 and 1).
+
+    Returns:
+        The arc sine in radians.
+
+    Raises:
+        ValueError: If n is outside the range [-1, 1].
+    """
+    if n < -1 or n > 1:
+        raise ValueError("asin requires input between -1 and 1")
+    return math.asin(n)
+
+
+def acos(n: Number) -> float:
+    """Calculate the arc cosine (inverse cosine) of a number.
+
+    Args:
+        n: The value (must be between -1 and 1).
+
+    Returns:
+        The arc cosine in radians.
+
+    Raises:
+        ValueError: If n is outside the range [-1, 1].
+    """
+    if n < -1 or n > 1:
+        raise ValueError("acos requires input between -1 and 1")
+    return math.acos(n)
+
+
+def atan(n: Number) -> float:
+    """Calculate the arc tangent (inverse tangent) of a number.
+
+    Args:
+        n: The value.
+
+    Returns:
+        The arc tangent in radians.
+    """
+    return math.atan(n)

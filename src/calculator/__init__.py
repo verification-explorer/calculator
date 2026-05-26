@@ -8,6 +8,12 @@ from calculator.core import (
     power,
     square_root,
     modulo,
+    sin,
+    cos,
+    tan,
+    asin,
+    acos,
+    atan,
 )
 from calculator.history import CalculationHistory, HistoryEntry
 
@@ -20,6 +26,12 @@ __all__ = [
     "power",
     "square_root",
     "modulo",
+    "sin",
+    "cos",
+    "tan",
+    "asin",
+    "acos",
+    "atan",
     "CalculationHistory",
     "HistoryEntry",
 ]
