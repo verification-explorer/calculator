@@ -6,9 +6,11 @@ including storage of expressions, results, and timestamps.
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Union
+from typing import Union, Literal, Optional
 
 Number = Union[int, float]
+Size = Literal["Byte", "Word", "DWord", "QWord"]
+Base = Literal["HEX", "DEC", "OCT", "BIN"]
 
 
 @dataclass
@@ -31,6 +33,34 @@ class HistoryEntry:
         Returns:
             A formatted string showing the expression and result.
         """
+        return f"{self.expression} = {self.result}"
+
+
+@dataclass
+class ProgrammerHistoryEntry(HistoryEntry):
+    """A programmer mode calculation history entry.
+
+    Extends HistoryEntry with base and integer size information.
+
+    Attributes:
+        expression: The mathematical expression that was evaluated.
+        result: The result of the calculation.
+        timestamp: When the calculation was performed.
+        base: The number base used (HEX, DEC, OCT, BIN).
+        integer_size: The integer size used (Byte, Word, DWord, QWord).
+    """
+
+    base: Optional[Base] = None
+    integer_size: Optional[Size] = None
+
+    def __str__(self) -> str:
+        """Return a human-readable string representation with base and size.
+
+        Returns:
+            A formatted string showing the expression, result, base, and size.
+        """
+        if self.base and self.integer_size:
+            return f"{self.expression} = {self.result} [{self.base}, {self.integer_size}]"
         return f"{self.expression} = {self.result}"
 
 
