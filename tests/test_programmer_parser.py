@@ -37,7 +37,7 @@ class TestParseLiteral:
             "0xGG",  # Invalid hex
             "0o999",  # Invalid octal
             "0b222",  # Invalid binary
-            "abc",  # Not a number
+            "GHI",  # Invalid - contains non-hex letters
         ],
     )
     def test_parse_base_literal_invalid(self, token):
@@ -321,3 +321,161 @@ class TestErrorHandling:
         # which will fail because there's no operator between them
         with pytest.raises(ValueError):
             programmer_parser.evaluate_programmer_expression("0xFF UNKNOWN 0x0F", "Byte")
+
+
+class TestGUIButtonInput:
+    """Tests for expressions built from GUI button clicks (no prefixes).
+
+    These tests simulate actual user input patterns from the calculator GUI,
+    where users click digit buttons and operators without typing prefixes.
+    """
+
+    @pytest.mark.parametrize(
+        "expression,size,expected_result",
+        [
+            # HEX mode: raw hex digits without 0x prefix
+            ("A AND B", "Byte", 0x0A & 0x0B),
+            ("A OR B", "Byte", 0x0A | 0x0B),
+            ("A XOR B", "Byte", 0x0A ^ 0x0B),
+            ("A NOR B", "Byte", (~(0x0A | 0x0B)) & 0xFF),
+            ("A NAND B", "Byte", (~(0x0A & 0x0B)) & 0xFF),
+            ("FF AND 0F", "Byte", 0x0F),
+            ("FF OR 0F", "Byte", 0xFF),
+            ("C0 XOR 3F", "Byte", 0xC0 ^ 0x3F),
+            ("DEAD AND BEEF", "DWord", 0xDEAD & 0xBEEF),
+        ],
+    )
+    def test_hex_mode_raw_input(self, expression, size, expected_result):
+        """Test HEX mode expressions without 0x prefix (GUI button input)."""
+        _, result, _ = programmer_parser.evaluate_programmer_expression(expression, size)
+        assert result == expected_result
+
+    @pytest.mark.parametrize(
+        "expression,size,expected_result",
+        [
+            # DEC mode: decimal digits
+            ("10 AND 15", "Byte", 10 & 15),
+            ("255 OR 128", "Byte", 255 | 128),
+            ("100 XOR 50", "Byte", 100 ^ 50),
+            ("200 + 55", "Byte", 255),
+            ("100 - 25", "Byte", 75),
+        ],
+    )
+    def test_dec_mode_input(self, expression, size, expected_result):
+        """Test DEC mode expressions (GUI button input)."""
+        _, result, _ = programmer_parser.evaluate_programmer_expression(expression, size)
+        assert result == expected_result
+
+    @pytest.mark.parametrize(
+        "expression,size,expected_result",
+        [
+            # BIN mode: binary digits (parsed as decimal, which is correct for raw input)
+            # Note: In BIN mode GUI, "110" means binary 110 = 6 decimal
+            # But the parser sees raw digits, so we test that parsing works
+            ("110 AND 111", "Byte", 110 & 111),  # Parsed as decimal
+            ("101 OR 010", "Byte", 101 | 10),    # Parsed as decimal
+            ("111 XOR 101", "Byte", 111 ^ 101),
+        ],
+    )
+    def test_bin_mode_raw_input(self, expression, size, expected_result):
+        """Test expressions with binary-looking digits (GUI button input).
+
+        Note: Without 0b prefix, these are parsed as decimal numbers.
+        The GUI should add 0b prefix for proper binary interpretation.
+        """
+        _, result, _ = programmer_parser.evaluate_programmer_expression(expression, size)
+        assert result == expected_result
+
+    @pytest.mark.parametrize(
+        "expression,size,expected_result",
+        [
+            # Shift operations from GUI
+            ("F0 << 2", "Byte", (0xF0 << 2) & 0xFF),
+            ("FF >> 4", "Byte", 0xFF >> 4),
+            ("80 >> 1", "Byte", 80 >> 1),  # 80 without hex letters = decimal
+            ("1 << 7", "Byte", 0x80),
+            ("A0 >> 1", "Byte", 0xA0 >> 1),  # A0 has hex letter = hex
+        ],
+    )
+    def test_shift_operations_raw_input(self, expression, size, expected_result):
+        """Test shift operations with raw hex digits (GUI button input)."""
+        _, result, _ = programmer_parser.evaluate_programmer_expression(expression, size)
+        assert result == expected_result
+
+    @pytest.mark.parametrize(
+        "expression,size,expected_result",
+        [
+            # Unary NOT from GUI
+            ("NOT F", "Byte", 0xF0),
+            ("NOT 0", "Byte", 0xFF),
+            ("NOT FF", "Byte", 0x00),
+            ("NOT A5", "Byte", 0x5A),
+        ],
+    )
+    def test_not_operation_raw_input(self, expression, size, expected_result):
+        """Test NOT operation with raw hex digits (GUI button input)."""
+        _, result, _ = programmer_parser.evaluate_programmer_expression(expression, size)
+        assert result == expected_result
+
+    @pytest.mark.parametrize(
+        "expression,size,expected_result",
+        [
+            # Chained operations from GUI
+            ("A AND B OR C", "Byte", (0x0A & 0x0B) | 0x0C),
+            ("FF AND F0 AND 0F", "Byte", 0xFF & 0xF0 & 0x0F),
+            ("10 + 20 + 30", "Byte", 60),
+            ("A XOR B XOR C", "Byte", 0x0A ^ 0x0B ^ 0x0C),
+        ],
+    )
+    def test_chained_operations_raw_input(self, expression, size, expected_result):
+        """Test chained operations with raw hex digits (GUI button input)."""
+        _, result, _ = programmer_parser.evaluate_programmer_expression(expression, size)
+        assert result == expected_result
+
+    @pytest.mark.parametrize(
+        "expression,size,expected_result",
+        [
+            # Parentheses with raw hex input
+            ("(A AND B) OR C", "Byte", (0x0A & 0x0B) | 0x0C),
+            ("A AND (B OR C)", "Byte", 0x0A & (0x0B | 0x0C)),
+            ("(FF AND F0) XOR 0F", "Byte", (0xFF & 0xF0) ^ 0x0F),
+            ("((A OR B) AND C)", "Byte", (0x0A | 0x0B) & 0x0C),
+        ],
+    )
+    def test_parentheses_raw_input(self, expression, size, expected_result):
+        """Test parentheses with raw hex digits (GUI button input)."""
+        _, result, _ = programmer_parser.evaluate_programmer_expression(expression, size)
+        assert result == expected_result
+
+
+class TestTokenizerEdgeCases:
+    """Tests for tokenizer edge cases discovered during integration."""
+
+    def test_operator_not_split_as_hex(self):
+        """Ensure AND/OR/etc are not split into hex digits A, D, etc."""
+        tokens = programmer_parser.tokenize_expression("FF AND 0F")
+        assert tokens == ["FF", "AND", "0F"]
+        assert "A" not in tokens
+        assert "D" not in tokens
+
+    def test_nand_not_split(self):
+        """Ensure NAND is not split (contains A and D)."""
+        tokens = programmer_parser.tokenize_expression("FF NAND 0F")
+        assert tokens == ["FF", "NAND", "0F"]
+
+    def test_nor_not_split(self):
+        """Ensure NOR is not split."""
+        tokens = programmer_parser.tokenize_expression("A NOR B")
+        assert tokens == ["A", "NOR", "B"]
+
+    def test_single_hex_digit(self):
+        """Test single hex digit tokenization."""
+        for digit in "0123456789ABCDEF":
+            tokens = programmer_parser.tokenize_expression(digit)
+            assert tokens == [digit], f"Failed for digit {digit}"
+
+    def test_mixed_case_operators(self):
+        """Test that operators work in any case."""
+        for op in ["and", "AND", "And", "aNd"]:
+            tokens = programmer_parser.tokenize_expression(f"A {op} B")
+            assert tokens[1] == "AND", f"Failed for operator {op}"

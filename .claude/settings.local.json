@@ -22,7 +22,9 @@
       "Bash(git push *)",
       "Bash(python *)",
       "Bash(git restore *)",
-      "Bash(grep -E \"README|CLAUDE|\\\\.md$\")"
+      "Bash(grep -E \"README|CLAUDE|\\\\.md$\")",
+      "Bash(.venv/Scripts/python.exe *)",
+      "Bash(venv/Scripts/python.exe *)"
     ]
   }
 }

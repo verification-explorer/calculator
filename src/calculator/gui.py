@@ -739,9 +739,8 @@ class ProgrammerModeWidget(QWidget):
 
             # Add to history
             result_str = programmer_parser.programmer.convert_to_base(result, self.active_base, self.integer_size)
-            history_entry = f"{self.current_input} = {result_str} [{self.active_base}, {self.integer_size}]"
             self.parent.history.add(self.current_input, result)
-            self.parent._refresh_history_display()
+            self.parent._update_history_list()
 
             # Clear input for next operation
             self.current_input = ""

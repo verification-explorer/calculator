@@ -61,6 +61,14 @@ def parse_base_literal(token: str) -> tuple[int, str]:
         except ValueError:
             raise ValueError(f"Invalid binary literal: {token}")
 
+    # Check if it's a standalone hex number (contains A-F but no prefix)
+    if any(c in token.upper() for c in 'ABCDEF'):
+        try:
+            value = int(token, 16)
+            return value, "HEX"
+        except ValueError:
+            raise ValueError(f"Invalid hexadecimal literal: {token}")
+
     # Default to decimal
     try:
         value = int(token)
@@ -83,21 +91,28 @@ def tokenize_expression(expr: str) -> list[str]:
         ['0xFF', 'AND', '0x0F']
         >>> tokenize_expression("(0xFF & 0x0F) | 0x10")
         ['(', '0xFF', '&', '0x0F', ')', '|', '0x10']
+        >>> tokenize_expression("A NOR B")
+        ['A', 'NOR', 'B']
     """
     # Pattern: match hex/oct/bin/dec numbers, operators, parentheses
     # Support both word operators (AND, OR) and symbol operators (&, |)
     # Note: Use case-insensitive flag for hex/oct/bin prefixes
-    pattern = r'(0[xX][0-9A-Fa-f]+|0[oO][0-7]+|0[bB][01\s]+|\d+|AND|OR|XOR|NOT|NAND|NOR|<<|>>|[&|^~+\-*/%()])'
+    # IMPORTANT: Word operators must come BEFORE hex digits to avoid matching 'A' from 'AND'
+    pattern = r'(0[xX][0-9A-Fa-f]+|0[oO][0-7]+|0[bB][01\s]+|NAND|NOR|AND|NOT|XOR|OR|<<|>>|[0-9A-Fa-f]+|[&|^~+\-*/%()])'
     tokens = re.findall(pattern, expr, re.IGNORECASE)
     # Uppercase only the word operators, not the hex numbers
+    word_operators = {"AND", "OR", "XOR", "NOT", "NAND", "NOR"}
     result = []
     for token in tokens:
         token = token.strip()
-        if token and not token.startswith('0'):  # Don't uppercase number literals
-            result.append(token.upper())
+        if not token:
+            continue
+        upper_token = token.upper()
+        if upper_token in word_operators:
+            result.append(upper_token)
         else:
             result.append(token)
-    return [t for t in result if t]
+    return result
 
 
 def normalize_operator(op: str) -> str:
