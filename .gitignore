@@ -84,3 +84,6 @@ venv.bak/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local Claude instructions (personal, not for team)
+CLAUDE.local.md
