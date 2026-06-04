@@ -8,7 +8,7 @@ import math
 import sys
 from typing import Optional
 
-from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QPoint, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal, QPropertyAnimation, QPoint, QTimer, QSettings
 from PyQt6.QtGui import QFont, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QApplication,
@@ -850,6 +850,687 @@ class ProgrammerModeWidget(QWidget):
         self._update_all_displays()
 
 
+class ConverterModeWidget(QWidget):
+    """Widget containing the unit converter mode UI."""
+
+    def __init__(self, parent):
+        super().__init__()
+        self.parent = parent
+
+        # State variables
+        self.current_category = "Length"
+        self.from_unit = "meter"
+        self.to_unit = "foot"
+        self.focused_field = "from"
+        self.last_edited_field = "from"
+
+        # Track units per category for state persistence
+        self._units_per_category: dict = {}
+
+        # Widget references
+        self.category_buttons: dict = {}
+        self.quick_unit_buttons: list = []
+
+        self._restore_state()
+        self._setup_ui()
+
+    def _setup_ui(self):
+        """Set up the converter mode user interface."""
+        from calculator import converter
+        from PyQt6.QtWidgets import QComboBox, QFrame
+
+        main_layout = QHBoxLayout(self)
+        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Left side: Converter panel
+        calc_layout = QVBoxLayout()
+        calc_layout.setSpacing(10)
+
+        # 1. Category Selector
+        category_layout = QHBoxLayout()
+        category_layout.setSpacing(4)
+
+        for cat in converter.get_categories():
+            short_name = cat[:4] if cat != "Temperature" else "Temp"
+            btn = CalculatorButton(short_name, "#3a3a3a")
+            btn.setMinimumSize(70, 40)
+            btn.setFont(QFont("Segoe UI", 11))
+            btn.clicked.connect(lambda checked, c=cat: self._on_category_changed(c))
+            self.category_buttons[cat] = btn
+            category_layout.addWidget(btn)
+
+        category_layout.addStretch()
+        calc_layout.addLayout(category_layout)
+
+        # 2. FROM Panel
+        from_panel = QVBoxLayout()
+        from_label = QLabel("FROM")
+        from_label.setStyleSheet("color: #888888; font-size: 12pt; font-weight: bold;")
+        from_panel.addWidget(from_label)
+
+        from_row = QHBoxLayout()
+        self.from_dropdown = QComboBox()
+        self.from_dropdown.setFixedWidth(150)
+        self.from_dropdown.setFont(QFont("Segoe UI", 12))
+        self._style_dropdown(self.from_dropdown)
+        self.from_dropdown.currentIndexChanged.connect(self._on_from_unit_changed)
+        from_row.addWidget(self.from_dropdown)
+
+        self.from_input = QLineEdit()
+        self.from_input.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.from_input.setFont(QFont("Segoe UI", 20))
+        self.from_input.setMinimumHeight(50)
+        self.from_input.setText("0")
+        self._style_input(self.from_input)
+        self.from_input.textChanged.connect(self._on_from_input_changed)
+        self.from_input.focusInEvent = lambda e: self._on_focus_changed("from", e)
+        from_row.addWidget(self.from_input)
+
+        from_panel.addLayout(from_row)
+        calc_layout.addLayout(from_panel)
+
+        # 3. Swap Button
+        swap_container = QHBoxLayout()
+        swap_container.addStretch()
+        swap_btn = CalculatorButton("Swap Units ⇄", "#5856d6")
+        swap_btn.setMinimumSize(120, 40)
+        swap_btn.setFont(QFont("Segoe UI", 11))
+        swap_btn.clicked.connect(self._swap_units)
+        swap_container.addWidget(swap_btn)
+        swap_container.addStretch()
+        calc_layout.addLayout(swap_container)
+
+        # 4. TO Panel
+        to_panel = QVBoxLayout()
+        to_label = QLabel("TO")
+        to_label.setStyleSheet("color: #888888; font-size: 12pt; font-weight: bold;")
+        to_panel.addWidget(to_label)
+
+        to_row = QHBoxLayout()
+        self.to_dropdown = QComboBox()
+        self.to_dropdown.setFixedWidth(150)
+        self.to_dropdown.setFont(QFont("Segoe UI", 12))
+        self._style_dropdown(self.to_dropdown)
+        self.to_dropdown.currentIndexChanged.connect(self._on_to_unit_changed)
+        to_row.addWidget(self.to_dropdown)
+
+        self.to_input = QLineEdit()
+        self.to_input.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.to_input.setFont(QFont("Segoe UI", 20))
+        self.to_input.setMinimumHeight(50)
+        self.to_input.setText("0")
+        self._style_input(self.to_input)
+        self.to_input.textChanged.connect(self._on_to_input_changed)
+        self.to_input.focusInEvent = lambda e: self._on_focus_changed("to", e)
+        to_row.addWidget(self.to_input)
+
+        to_panel.addLayout(to_row)
+        calc_layout.addLayout(to_panel)
+
+        # 5. Quick Unit Buttons
+        self.quick_units_layout = QHBoxLayout()
+        self.quick_units_layout.setSpacing(4)
+        self.quick_units_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        calc_layout.addLayout(self.quick_units_layout)
+
+        # 6. Numeric Keypad
+        keypad_layout = QGridLayout()
+        keypad_layout.setSpacing(8)
+
+        keypad_buttons = [
+            ("7", 0, 0, "#4a4a4a"),
+            ("8", 0, 1, "#4a4a4a"),
+            ("9", 0, 2, "#4a4a4a"),
+            ("C", 0, 3, "#ff3b30"),
+            ("4", 1, 0, "#4a4a4a"),
+            ("5", 1, 1, "#4a4a4a"),
+            ("6", 1, 2, "#4a4a4a"),
+            ("CE", 1, 3, "#ff3b30"),
+            ("1", 2, 0, "#4a4a4a"),
+            ("2", 2, 1, "#4a4a4a"),
+            ("3", 2, 2, "#4a4a4a"),
+            ("⌫", 2, 3, "#ff3b30"),
+            ("+/−", 3, 0, "#4a4a4a"),
+            ("0", 3, 1, "#4a4a4a"),
+            (".", 3, 2, "#4a4a4a"),
+            ("=", 3, 3, "#ff9500"),
+        ]
+
+        for text, row, col, color in keypad_buttons:
+            btn = CalculatorButton(text, color)
+            btn.clicked.connect(lambda checked, t=text: self._on_keypad_click(t))
+            keypad_layout.addWidget(btn, row, col)
+
+        calc_layout.addLayout(keypad_layout)
+        calc_layout.addStretch()
+
+        main_layout.addLayout(calc_layout, stretch=2)
+
+        # Right side: History panel
+        history_layout = QVBoxLayout()
+        history_label = QLabel("History")
+        history_label.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+        history_label.setStyleSheet("color: white;")
+        history_layout.addWidget(history_label)
+
+        history_layout.addWidget(self.parent.history_list)
+
+        clear_history_btn = QPushButton("Clear History")
+        clear_history_btn.setFont(QFont("Segoe UI", 10))
+        clear_history_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3a3a3a;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px;
+            }
+            QPushButton:hover {
+                background-color: #4a4a4a;
+            }
+        """)
+        clear_history_btn.clicked.connect(self.parent._clear_history)
+        history_layout.addWidget(clear_history_btn)
+
+        main_layout.addLayout(history_layout, stretch=1)
+
+        # Initialize UI state
+        self._update_category_buttons()
+        self._update_dropdowns()
+        self._update_quick_unit_buttons()
+
+    def _style_dropdown(self, dropdown):
+        """Apply dark theme styling to a QComboBox."""
+        dropdown.setStyleSheet("""
+            QComboBox {
+                background-color: #3a3a3a;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px;
+            }
+            QComboBox:hover {
+                background-color: #4a4a4a;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 30px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 6px solid white;
+                margin-right: 10px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2d2d2d;
+                color: white;
+                selection-background-color: #ff9500;
+                border: 1px solid #3a3a3a;
+            }
+        """)
+
+    def _style_input(self, input_field):
+        """Apply dark theme styling to a QLineEdit."""
+        input_field.setStyleSheet("""
+            QLineEdit {
+                background-color: #1c1c1c;
+                color: white;
+                border: 1px solid #3a3a3a;
+                border-radius: 8px;
+                padding: 10px;
+            }
+            QLineEdit:focus {
+                border-color: #ff9500;
+            }
+        """)
+
+    def _on_category_changed(self, category: str):
+        """Handle category selection."""
+        from calculator import converter
+
+        if category == self.current_category:
+            return
+
+        # Save current category's units before switching
+        self._units_per_category[self.current_category] = (self.from_unit, self.to_unit)
+
+        self.current_category = category
+
+        # Restore saved units for the new category, or use defaults
+        if category in self._units_per_category:
+            self.from_unit, self.to_unit = self._units_per_category[category]
+        else:
+            self.from_unit, self.to_unit = converter.get_default_units(category)
+
+        self.last_edited_field = "from"
+
+        self._update_category_buttons()
+        self._update_dropdowns()
+        self._update_quick_unit_buttons()
+
+        # Reset input values
+        self.from_input.blockSignals(True)
+        self.to_input.blockSignals(True)
+        self.from_input.setText("0")
+        self.to_input.setText("0")
+        self.from_input.blockSignals(False)
+        self.to_input.blockSignals(False)
+
+        self._save_state()
+
+    def _update_category_buttons(self):
+        """Update category button styling."""
+        for cat, btn in self.category_buttons.items():
+            if cat == self.current_category:
+                btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #ff9500;
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                    }
+                    QPushButton:hover {
+                        background-color: #ffaa33;
+                    }
+                """)
+            else:
+                btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #3a3a3a;
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                    }
+                    QPushButton:hover {
+                        background-color: #4a4a4a;
+                    }
+                """)
+
+    def _update_dropdowns(self):
+        """Update dropdown contents for current category."""
+        from calculator import converter
+
+        units = converter.get_units_for_category(self.current_category)
+
+        self.from_dropdown.blockSignals(True)
+        self.to_dropdown.blockSignals(True)
+
+        self.from_dropdown.clear()
+        self.to_dropdown.clear()
+
+        for unit in units:
+            abbrev = converter.get_unit_abbreviation(unit)
+            display_text = f"{abbrev} - {unit}"
+            self.from_dropdown.addItem(display_text, unit)
+            self.to_dropdown.addItem(display_text, unit)
+
+        # Set current selections
+        from_idx = units.index(self.from_unit) if self.from_unit in units else 0
+        to_idx = units.index(self.to_unit) if self.to_unit in units else 0
+        self.from_dropdown.setCurrentIndex(from_idx)
+        self.to_dropdown.setCurrentIndex(to_idx)
+
+        self.from_dropdown.blockSignals(False)
+        self.to_dropdown.blockSignals(False)
+
+    def _update_quick_unit_buttons(self):
+        """Update quick unit buttons for current category."""
+        from calculator import converter
+
+        # Clear existing buttons
+        while self.quick_units_layout.count():
+            item = self.quick_units_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        self.quick_unit_buttons.clear()
+
+        quick_units = converter.get_quick_units(self.current_category)
+        for abbrev in quick_units:
+            btn = CalculatorButton(abbrev, "#4a4a4a")
+            btn.setMinimumSize(50, 50)
+            btn.setFont(QFont("Segoe UI", 12))
+            btn.clicked.connect(lambda checked, a=abbrev: self._on_quick_unit_clicked(a))
+            self.quick_unit_buttons.append(btn)
+            self.quick_units_layout.addWidget(btn)
+
+        self._update_quick_unit_highlights()
+
+    def _update_quick_unit_highlights(self):
+        """Highlight FROM and TO units in quick buttons."""
+        from calculator import converter
+
+        from_abbrev = converter.get_unit_abbreviation(self.from_unit)
+        to_abbrev = converter.get_unit_abbreviation(self.to_unit)
+
+        for btn in self.quick_unit_buttons:
+            text = btn.text()
+            if text == from_abbrev:
+                btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #4a4a4a;
+                        color: white;
+                        border: 2px solid #ff9500;
+                        border-radius: 8px;
+                    }
+                    QPushButton:hover {
+                        background-color: #5a5a5a;
+                    }
+                """)
+            elif text == to_abbrev:
+                btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #4a4a4a;
+                        color: white;
+                        border: 2px solid #5856d6;
+                        border-radius: 8px;
+                    }
+                    QPushButton:hover {
+                        background-color: #5a5a5a;
+                    }
+                """)
+            else:
+                btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #4a4a4a;
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                    }
+                    QPushButton:hover {
+                        background-color: #5a5a5a;
+                    }
+                """)
+
+    def _on_quick_unit_clicked(self, abbrev: str):
+        """Handle quick unit button click."""
+        from calculator import converter
+        from PyQt6.QtWidgets import QApplication
+
+        try:
+            unit = converter.get_unit_from_abbreviation(abbrev, self.current_category)
+        except ValueError:
+            return
+
+        # Shift+click sets TO unit
+        modifiers = QApplication.keyboardModifiers()
+        if modifiers == Qt.KeyboardModifier.ShiftModifier:
+            self.to_unit = unit
+            units = converter.get_units_for_category(self.current_category)
+            idx = units.index(unit) if unit in units else 0
+            self.to_dropdown.blockSignals(True)
+            self.to_dropdown.setCurrentIndex(idx)
+            self.to_dropdown.blockSignals(False)
+        else:
+            self.from_unit = unit
+            units = converter.get_units_for_category(self.current_category)
+            idx = units.index(unit) if unit in units else 0
+            self.from_dropdown.blockSignals(True)
+            self.from_dropdown.setCurrentIndex(idx)
+            self.from_dropdown.blockSignals(False)
+
+        self._update_quick_unit_highlights()
+        self._perform_conversion(self.last_edited_field)
+
+    def _on_from_unit_changed(self, index: int):
+        """Handle FROM unit dropdown change."""
+        unit = self.from_dropdown.currentData()
+        if unit:
+            self.from_unit = unit
+            self._update_quick_unit_highlights()
+            self._perform_conversion(self.last_edited_field)
+            self._save_state()
+
+    def _on_to_unit_changed(self, index: int):
+        """Handle TO unit dropdown change."""
+        unit = self.to_dropdown.currentData()
+        if unit:
+            self.to_unit = unit
+            self._update_quick_unit_highlights()
+            self._perform_conversion(self.last_edited_field)
+            self._save_state()
+
+    def _on_focus_changed(self, field: str, event):
+        """Handle focus change between input fields."""
+        self.focused_field = field
+        QLineEdit.focusInEvent(
+            self.from_input if field == "from" else self.to_input, event
+        )
+
+    def _on_from_input_changed(self, text: str):
+        """Handle FROM input text change."""
+        self.last_edited_field = "from"
+        self._perform_conversion("from")
+
+    def _on_to_input_changed(self, text: str):
+        """Handle TO input text change."""
+        self.last_edited_field = "to"
+        self._perform_conversion("to")
+
+    def _perform_conversion(self, source: str):
+        """Perform conversion and update the other field."""
+        from calculator import converter
+
+        # Same-unit conversion: show "1" in both fields
+        if self.from_unit == self.to_unit:
+            self.from_input.blockSignals(True)
+            self.to_input.blockSignals(True)
+            self.from_input.setText("1")
+            self.to_input.setText("1")
+            self.from_input.blockSignals(False)
+            self.to_input.blockSignals(False)
+            return
+
+        try:
+            if source == "from":
+                raw = self.from_input.text().replace(",", "")
+                value = float(raw) if raw and raw != "-" else 0.0
+                result = converter.convert(
+                    value, self.from_unit, self.to_unit, self.current_category
+                )
+                self.to_input.blockSignals(True)
+                self.to_input.setText(converter.format_result(result))
+                self.to_input.blockSignals(False)
+            else:
+                raw = self.to_input.text().replace(",", "")
+                value = float(raw) if raw and raw != "-" else 0.0
+                result = converter.convert(
+                    value, self.to_unit, self.from_unit, self.current_category
+                )
+                self.from_input.blockSignals(True)
+                self.from_input.setText(converter.format_result(result))
+                self.from_input.blockSignals(False)
+        except (ValueError, ZeroDivisionError):
+            pass
+
+    def _swap_units(self):
+        """Swap FROM and TO units and values."""
+        from calculator import converter
+
+        # Swap units
+        self.from_unit, self.to_unit = self.to_unit, self.from_unit
+
+        # Swap values
+        from_text = self.from_input.text()
+        to_text = self.to_input.text()
+
+        self.from_input.blockSignals(True)
+        self.to_input.blockSignals(True)
+        self.from_input.setText(to_text)
+        self.to_input.setText(from_text)
+        self.from_input.blockSignals(False)
+        self.to_input.blockSignals(False)
+
+        # Update dropdowns
+        units = converter.get_units_for_category(self.current_category)
+        from_idx = units.index(self.from_unit) if self.from_unit in units else 0
+        to_idx = units.index(self.to_unit) if self.to_unit in units else 0
+
+        self.from_dropdown.blockSignals(True)
+        self.to_dropdown.blockSignals(True)
+        self.from_dropdown.setCurrentIndex(from_idx)
+        self.to_dropdown.setCurrentIndex(to_idx)
+        self.from_dropdown.blockSignals(False)
+        self.to_dropdown.blockSignals(False)
+
+        self._update_quick_unit_highlights()
+
+    def _on_keypad_click(self, key: str):
+        """Handle keypad button click."""
+        if key == "C":
+            self._clear_all()
+        elif key == "CE":
+            self._clear_entry()
+        elif key == "⌫":
+            self._backspace()
+        elif key == "+/−":
+            self._toggle_sign()
+        elif key == "=":
+            self._record_to_history()
+        else:
+            self._append_digit(key)
+
+    def _append_digit(self, digit: str):
+        """Append a digit or decimal point to the focused field."""
+        input_field = self.from_input if self.focused_field == "from" else self.to_input
+
+        current = input_field.text().replace(",", "")
+
+        # Handle decimal point
+        if digit == ".":
+            if "." in current:
+                return
+            if not current or current == "-":
+                digit = "0."
+
+        # Replace leading zero (unless adding decimal)
+        if current == "0" and digit != ".":
+            current = ""
+
+        input_field.setText(current + digit)
+
+    def _clear_all(self):
+        """Clear both input fields."""
+        self.from_input.blockSignals(True)
+        self.to_input.blockSignals(True)
+        self.from_input.setText("0")
+        self.to_input.setText("0")
+        self.from_input.blockSignals(False)
+        self.to_input.blockSignals(False)
+        self.last_edited_field = "from"
+
+    def _clear_entry(self):
+        """Clear the focused input field."""
+        input_field = self.from_input if self.focused_field == "from" else self.to_input
+        input_field.setText("0")
+
+    def _backspace(self):
+        """Delete the last character from the focused field."""
+        input_field = self.from_input if self.focused_field == "from" else self.to_input
+        current = input_field.text().replace(",", "")
+
+        if len(current) <= 1 or (len(current) == 2 and current.startswith("-")):
+            input_field.setText("0")
+        else:
+            input_field.setText(current[:-1])
+
+    def _toggle_sign(self):
+        """Toggle the sign of the focused field."""
+        input_field = self.from_input if self.focused_field == "from" else self.to_input
+        current = input_field.text().replace(",", "")
+
+        if current.startswith("-"):
+            input_field.setText(current[1:])
+        elif current != "0":
+            input_field.setText("-" + current)
+
+    def _record_to_history(self):
+        """Record the current conversion to history."""
+        from calculator import converter
+
+        try:
+            from_text = self.from_input.text().replace(",", "")
+            from_value = float(from_text) if from_text and from_text != "-" else 0.0
+            to_text = self.to_input.text().replace(",", "")
+            to_value = float(to_text) if to_text and to_text != "-" else 0.0
+
+            # Format the from value for display
+            from_display = converter.format_result(from_value)
+
+            self.parent.history.add_converter(
+                from_value=from_display,
+                to_value=to_value,
+                category=self.current_category,
+                from_unit=self.from_unit,
+                to_unit=self.to_unit,
+            )
+            self.parent._update_history_list()
+        except ValueError:
+            pass
+
+    def _save_state(self):
+        """Save converter state to QSettings for persistence."""
+        settings = QSettings("Calculator", "ConverterMode")
+        settings.setValue("category", self.current_category)
+
+        # Save current units to the per-category dict
+        self._units_per_category[self.current_category] = (self.from_unit, self.to_unit)
+
+        # Save all category units
+        for cat, (from_u, to_u) in self._units_per_category.items():
+            settings.setValue(f"units/{cat}/from", from_u)
+            settings.setValue(f"units/{cat}/to", to_u)
+
+    def _restore_state(self):
+        """Restore converter state from QSettings."""
+        from calculator import converter
+
+        settings = QSettings("Calculator", "ConverterMode")
+
+        # Restore category
+        saved_category = settings.value("category", "Length")
+        if saved_category in converter.get_categories():
+            self.current_category = saved_category
+
+        # Restore units per category
+        for cat in converter.get_categories():
+            default_from, default_to = converter.get_default_units(cat)
+            from_u = settings.value(f"units/{cat}/from", default_from)
+            to_u = settings.value(f"units/{cat}/to", default_to)
+
+            # Validate units exist for this category
+            valid_units = converter.get_units_for_category(cat)
+            if from_u not in valid_units:
+                from_u = default_from
+            if to_u not in valid_units:
+                to_u = default_to
+
+            self._units_per_category[cat] = (from_u, to_u)
+
+        # Set current units from restored category
+        if self.current_category in self._units_per_category:
+            self.from_unit, self.to_unit = self._units_per_category[self.current_category]
+
+    def set_initial_state(self):
+        """Reset to initial state when switching to this mode."""
+        self.focused_field = "from"
+        self.last_edited_field = "from"
+
+        self._update_category_buttons()
+        self._update_dropdowns()
+        self._update_quick_unit_buttons()
+
+        self.from_input.blockSignals(True)
+        self.to_input.blockSignals(True)
+        self.from_input.setText("0")
+        self.to_input.setText("0")
+        self.from_input.blockSignals(False)
+        self.to_input.blockSignals(False)
+
+
 class ModeToolbar(QWidget):
     """Toolbar with hamburger menu for mode switching."""
 
@@ -962,6 +1643,11 @@ class ModeSidebar(QWidget):
         self.programmer_btn.clicked.connect(lambda: self.mode_selected.emit("programmer"))
         layout.addWidget(self.programmer_btn)
 
+        self.converter_btn = QPushButton("Unit Converter")
+        self.converter_btn.setFont(QFont("Segoe UI", 14))
+        self.converter_btn.clicked.connect(lambda: self.mode_selected.emit("converter"))
+        layout.addWidget(self.converter_btn)
+
         layout.addStretch()
 
         self.set_active_mode("standard")
@@ -1000,6 +1686,7 @@ class ModeSidebar(QWidget):
 
         self.standard_btn.setStyleSheet(active_style if mode == "standard" else normal_style)
         self.programmer_btn.setStyleSheet(active_style if mode == "programmer" else normal_style)
+        self.converter_btn.setStyleSheet(active_style if mode == "converter" else normal_style)
 
 
 class CalculatorWindow(QMainWindow):
@@ -1042,8 +1729,10 @@ class CalculatorWindow(QMainWindow):
         self.mode_stack = QStackedWidget()
         self.standard_widget = StandardModeWidget(self)
         self.programmer_widget = ProgrammerModeWidget(self)
-        self.mode_stack.addWidget(self.standard_widget)
-        self.mode_stack.addWidget(self.programmer_widget)
+        self.converter_widget = ConverterModeWidget(self)
+        self.mode_stack.addWidget(self.standard_widget)      # index 0
+        self.mode_stack.addWidget(self.programmer_widget)    # index 1
+        self.mode_stack.addWidget(self.converter_widget)     # index 2
         container_layout.addWidget(self.mode_stack)
 
         main_layout.addWidget(container)
@@ -1280,9 +1969,60 @@ class CalculatorWindow(QMainWindow):
 
     def _on_history_item_clicked(self, item):
         """Handle double-click on history item to reuse result."""
+        import re
+
         text = item.text()
+
+        # Check if this is a converter history entry: "100 m = 328.084 ft [Length]"
+        converter_match = re.match(
+            r"^([\d,.\-]+)\s+(\S+)\s+=\s+[\d,.\-e+]+\s+(\S+)\s+\[(\w+)\]$",
+            text.strip(),
+        )
+        if converter_match and self.current_mode == "converter":
+            from calculator import converter
+
+            from_value = converter_match.group(1).replace(",", "")
+            from_abbr = converter_match.group(2)
+            to_abbr = converter_match.group(3)
+            category = converter_match.group(4)
+
+            converter_widget = self.mode_stack.widget(2)
+
+            # Switch to the category if different
+            if category != converter_widget.current_category:
+                converter_widget._on_category_changed(category)
+
+            # Find and set units by abbreviation
+            units = converter.get_units_for_category(category)
+            from_unit = next(
+                (u for u in units if converter.get_unit_abbreviation(u) == from_abbr),
+                None,
+            )
+            to_unit = next(
+                (u for u in units if converter.get_unit_abbreviation(u) == to_abbr),
+                None,
+            )
+
+            if from_unit and to_unit:
+                converter_widget.from_unit = from_unit
+                converter_widget.to_unit = to_unit
+                converter_widget._update_dropdowns()
+                converter_widget._update_quick_unit_highlights()
+
+            # Populate FROM field with the original value
+            converter_widget.from_input.blockSignals(True)
+            converter_widget.from_input.setText(from_value)
+            converter_widget.from_input.blockSignals(False)
+            converter_widget.last_edited_field = "from"
+            converter_widget._perform_conversion("from")
+            return
+
+        # Standard/programmer mode: extract result after "="
         if "=" in text:
             result = text.split("=")[-1].strip()
+            # Remove any trailing metadata like "[HEX, DWord]"
+            if "[" in result:
+                result = result.split("[")[0].strip()
             self.current_input = result
             self._update_display()
 
@@ -1320,6 +2060,10 @@ class CalculatorWindow(QMainWindow):
             # Set initial value in programmer mode
             programmer_widget = self.mode_stack.widget(1)
             programmer_widget.set_initial_value(current_value)
+        elif mode == "converter":
+            self.mode_stack.setCurrentIndex(2)
+            self.history_list.clear()
+            self.converter_widget.set_initial_state()
 
     def _toggle_sidebar(self):
         """Toggle sidebar visibility with animation."""
@@ -1372,6 +2116,53 @@ class CalculatorWindow(QMainWindow):
         if event.key() == Qt.Key.Key_Escape and self.sidebar_visible:
             self._toggle_sidebar()
             return
+
+        # Handle converter mode keyboard shortcuts
+        if self.current_mode == "converter":
+            converter_widget = self.mode_stack.widget(2)
+
+            # F6-F13 for category switching
+            category_keys = {
+                Qt.Key.Key_F6: "Length",
+                Qt.Key.Key_F7: "Weight",
+                Qt.Key.Key_F8: "Temperature",
+                Qt.Key.Key_F9: "Volume",
+                Qt.Key.Key_F10: "Area",
+                Qt.Key.Key_F11: "Speed",
+                Qt.Key.Key_F12: "Time",
+                Qt.Key.Key_F13: "Data",
+            }
+            if event.key() in category_keys:
+                converter_widget._on_category_changed(category_keys[event.key()])
+                return
+
+            # Ctrl+Shift+S for swap
+            if (
+                event.key() == Qt.Key.Key_S
+                and event.modifiers()
+                == (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier)
+            ):
+                converter_widget._swap_units()
+                return
+
+            # Numeric input
+            key = event.text()
+            if key.isdigit() or key == ".":
+                converter_widget._append_digit(key)
+                return
+
+            if event.key() == Qt.Key.Key_Backspace:
+                converter_widget._backspace()
+                return
+            elif event.key() == Qt.Key.Key_Delete:
+                converter_widget._clear_entry()
+                return
+            elif event.key() == Qt.Key.Key_Escape:
+                converter_widget._clear_all()
+                return
+            elif event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Equal):
+                converter_widget._record_to_history()
+                return
 
         # Handle programmer mode keyboard shortcuts
         if self.current_mode == "programmer":
