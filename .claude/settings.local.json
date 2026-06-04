@@ -24,7 +24,24 @@
       "Bash(git restore *)",
       "Bash(grep -E \"README|CLAUDE|\\\\.md$\")",
       "Bash(.venv/Scripts/python.exe *)",
-      "Bash(venv/Scripts/python.exe *)"
+      "Bash(venv/Scripts/python.exe *)",
+      "mcp__sqlite__create_table",
+      "mcp__sqlite__write_query",
+      "mcp__sqlite__read_query",
+      "WebSearch",
+      "WebFetch(domain:support.apple.com)",
+      "WebFetch(domain:support.microsoft.com)",
+      "WebFetch(domain:apps.microsoft.com)",
+      "WebFetch(domain:en.wikipedia.org)",
+      "WebFetch(domain:www.investopedia.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.calculatorsoup.com)",
+      "WebFetch(domain:www.tiobe.com)",
+      "WebFetch(domain:www.omnicalculator.com)",
+      "WebFetch(domain:www.rapidtables.com)",
+      "WebFetch(domain:www.unitconverters.net)",
+      "WebFetch(domain:www.timeanddate.com)",
+      "Bash(venv/bin/pytest tests/test_converter.py -v)"
     ]
   }
 }

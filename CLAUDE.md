@@ -37,6 +37,9 @@ cd docs && make html
 
 <important if="you are writing, running, or modifying tests">
 ## Testing
+During implementation, Claude Code may write tests to verify its own work.
+After implementation is complete, run @test-writer to produce the final
+spec-driven test suite, which replaces any temporary implementation tests.
 
 ```bash
 # Run all tests
@@ -118,3 +121,5 @@ Full specification available in `specs/programmer_mode.md`. Key implementation d
 - **Enter/=**: Execute, **Backspace**: Delete, **Escape**: Clear entry
 - **Ctrl+Shift+X**: Swap operands
 </important>
+
+
