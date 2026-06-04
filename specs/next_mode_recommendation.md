@@ -1,223 +1,267 @@
-# Next Mode Recommendation: Unit Conversion Mode
+# Next Mode Recommendation: Date Calculation Mode
 
 ## Executive Summary
 
-After analyzing the existing codebase, the detailed Programmer Mode specification, and researching calculator features across Windows Calculator, macOS Calculator, and various online calculator platforms, I recommend **Unit Conversion Mode** as the next natural evolution for this calculator application.
+The app now has three modes: Standard (arithmetic + trig), Programmer (bitwise + base conversion), and Unit Converter (physical measurements). After researching the full landscape of calculator app modes — Windows Calculator, macOS Calculator, Android/iOS scientific apps, and financial calculators — the recommended next mode is **Date Calculation Mode**.
+
+It is the single most prominent calculator feature that this app is still missing, it requires no external APIs or network access, and PyQt6 ships with native date widgets (`QDateEdit`, `QCalendarWidget`) that make the implementation straightforward.
+
+---
+
+## Mode Name
+
+**Date Calculator**
 
 ---
 
 ## What It Does
 
-Unit Conversion Mode provides bidirectional conversion between measurement units across common categories. Users select a category (e.g., Length), enter a value in one unit (e.g., meters), and see the converted value in another unit (e.g., feet) in real-time.
+Date Calculator Mode provides two distinct sub-modes, selectable via toggle buttons at the top of the panel:
 
-### Core Categories (Initial Scope)
+### Sub-mode 1: Date Difference
 
-| Category | Example Units |
-|----------|---------------|
-| Length | meter, kilometer, mile, yard, foot, inch, centimeter, millimeter |
-| Weight/Mass | kilogram, gram, pound, ounce, stone, metric ton |
-| Temperature | Celsius, Fahrenheit, Kelvin |
-| Volume | liter, milliliter, gallon (US/UK), quart, pint, cup, fluid ounce |
-| Area | square meter, square foot, acre, hectare, square kilometer, square mile |
-| Speed | m/s, km/h, mph, knots, ft/s |
-| Time | seconds, minutes, hours, days, weeks, years |
-| Data Storage | bytes, KB, MB, GB, TB, PB (binary and decimal) |
+The user enters two dates (Start and End). The mode calculates and displays the span between them in multiple units simultaneously:
+
+- Total days
+- Weeks and remaining days
+- Months and remaining days (approximate, using calendar months)
+- Years, months, and remaining days (human-readable form)
+- Business days only (excluding Saturdays and Sundays)
+
+Example output for Jan 1, 2024 to Jun 4, 2026:
+```
+885 days total
+126 weeks, 3 days
+29 months, 3 days
+2 years, 5 months, 3 days
+633 business days
+```
+
+### Sub-mode 2: Add / Subtract Duration
+
+The user enters a starting date and a duration (years, months, weeks, days), then chooses to add or subtract. The result is the new calendar date.
+
+Example: Jan 1, 2024 + 90 days = March 31, 2024.
+
+Optional: a "business days only" toggle that skips weekends when counting forward or backward.
 
 ---
 
 ## Why It Fits This App
 
-### 1. Natural Progression from Programmer Mode
+### 1. Closes the Last Major Gap vs. Windows Calculator
 
-The Programmer Mode already demonstrates sophisticated base conversion (HEX/DEC/OCT/BIN). Unit conversion follows the same mental model: take a value, convert it between different representations. The architecture for "canonical internal value with multiple display formats" is already proven.
+Windows Calculator ships with four main modes: Standard, Scientific, Programmer, and Date Calculation. This app has covered the equivalent of the first three. Date Calculation is the obvious remaining entry in that list, and it is the one users most frequently ask about.
 
-### 2. Developer-Friendly Feature Set
+### 2. No External Dependencies
 
-Software developers frequently need:
-- Data storage conversions (MB to GB, binary vs decimal)
-- Time conversions for timeout/delay calculations
-- Speed/bandwidth calculations for network programming
+Unlike currency conversion (requires live exchange rates) or graphing (requires a plotting engine), date math is entirely self-contained in Python's `datetime` standard library and PyQt6's `QDate`. No new packages need to be added to the project.
 
-This mode serves the same technical audience that uses Programmer Mode.
+### 3. PyQt6 Provides First-Class Date Widgets
 
-### 3. Complements Existing Modes Without Overlap
+PyQt6 includes `QDateEdit` (a spinner-style date input with up/down arrows) and `QCalendarWidget` (a full month-view calendar picker). Both are mature, keyboard-navigable, and work cleanly in the existing dark theme with a stylesheet override. No custom widget needs to be built from scratch.
 
-- Standard Mode: Basic arithmetic
-- Programmer Mode: Number system conversions and bitwise operations
-- Unit Conversion Mode: Physical measurement conversions
+### 4. Broad and Concrete Use Cases
 
-Each mode serves a distinct purpose with no feature duplication.
+Date difference calculations are used daily in project management, legal deadlines, HR (tenure calculations), healthcare (age, gestational weeks), finance (bond maturity), and everyday planning (days until an event). The business-days feature alone makes this mode useful for anyone managing deliverables.
 
-### 4. Proven Feature in Major Calculator Apps
+### 5. Consistent Architecture
 
-Both Windows Calculator and macOS Calculator include unit conversion as a core feature. Users expect this functionality in a full-featured calculator application.
+Date Calculation Mode requires a new `date_calc.py` core module (pure functions, no UI, raises `ValueError` for invalid inputs) following the same pattern as `core.py`, `programmer.py`, and `converter.py`. The UI widget follows the same `QWidget` subclass pattern as `StandardModeWidget`, `ProgrammerModeWidget`, and `ConverterModeWidget`. The sidebar gets a fourth entry. Nothing architectural needs to change.
 
-### 5. Reuses Existing UI Patterns
+### 6. History Integration is Trivial
 
-The category selector can use the same button-row pattern as Programmer Mode's integer size selector. The bidirectional input fields mirror the HEX/DEC/OCT/BIN panels. No new UI paradigms required.
+The existing `CalculationHistory` class stores string expressions and results. A date calculation entry can be rendered as a plain string and stored the same way: `"Jan 1, 2024 to Jun 4, 2026 = 885 days"`.
 
 ---
 
 ## Key Buttons and Inputs
 
-### Top Section: Category Selector
-- Horizontal row of category buttons (Length, Weight, Temperature, etc.)
-- Active category highlighted with accent color (same orange as Programmer Mode)
-- Only one category active at a time
+### Sub-mode Toggle
 
-### Conversion Panel
-- **From Unit**: Dropdown/button selector + editable input field
-- **To Unit**: Dropdown/button selector + editable input field
-- **Swap Button**: Bidirectional arrow to swap from/to units
-- Both fields update in real-time as user types (same as Programmer Mode base panels)
+Two `CalculatorButton` widgets at the top, styled like Programmer Mode's size selector (radio-style, one active at a time):
 
-### Quick Unit Buttons
-- Grid of common units for the selected category
-- Clicking a unit sets it as the "From" or "To" unit (based on focus)
-- Disabled units gray out (same pattern as Programmer Mode digit buttons)
+- `Date Difference` (active by default)
+- `Add / Subtract`
 
-### Favorites Section (Optional)
-- User-defined pinned conversions (e.g., "km to miles")
-- Quick access without navigating categories
+### Date Difference Sub-mode
+
+| Control | Widget | Purpose |
+|---------|--------|---------|
+| Start Date | `QDateEdit` | First date input |
+| End Date | `QDateEdit` | Second date input |
+| Calendar icon button | `CalculatorButton` | Opens `QCalendarWidget` popup |
+| Swap button | `CalculatorButton` ("#5856d6") | Swaps start and end dates |
+| Business days toggle | Checkable `CalculatorButton` | Excludes weekends from count |
+| Calculate button | `CalculatorButton` ("#ff9500") | Triggers calculation (also auto-calculates on any change) |
+| Results panel | `QLabel` rows | Shows all output formats simultaneously |
+
+### Add / Subtract Sub-mode
+
+| Control | Widget | Purpose |
+|---------|--------|---------|
+| Start Date | `QDateEdit` | Base date |
+| Years field | `QSpinBox` (0–999) | Years to add/subtract |
+| Months field | `QSpinBox` (0–11) | Months to add/subtract |
+| Weeks field | `QSpinBox` (0–52) | Weeks to add/subtract |
+| Days field | `QSpinBox` (0–365) | Days to add/subtract |
+| Add / Subtract toggle | Pair of `CalculatorButton` | Direction of operation |
+| Business days toggle | Checkable `CalculatorButton` | Skip weekends when counting days |
+| Result label | `QLabel` (large font) | Resulting date, prominently displayed |
+| Result day label | `QLabel` (smaller, gray) | Day of week of the result |
+
+### History Panel
+
+Same right-side history panel as all other modes: `QListWidget` + "Clear History" button, shared via `self.parent.history_list`.
 
 ---
 
 ## Rough UI Layout
 
 ```
-+------------------------------------------------------------------+
-| [hamburger] Calculator                                            |
-+------------------------------------------------------------------+
-| [Length] [Weight] [Temp] [Volume] [Area] [Speed] [Time] [Data]   |  <- Category selector
-+------------------------------------------------------------------+
-|                                                                    |
-|  FROM:  [meter     v]  |  1234.56                                 |  <- Dropdown + input
-|                        |                                          |
-|         [ swap  <=>  ]                                            |  <- Swap button
-|                        |                                          |
-|  TO:    [foot      v]  |  4050.52                                 |  <- Dropdown + input
-|                                                                    |
-+------------------------------------------------------------------+
-|                                                                    |
-|  [m]  [km]  [mi]  [yd]  [ft]  [in]  [cm]  [mm]                   |  <- Quick unit buttons
-|                                                                    |
-+------------------------------------------------------------------+
-|                          HISTORY                                  |
-|  1234.56 m = 4050.52 ft                                          |
-|  100 km = 62.14 mi                                                |
-|  ...                                                              |
-+------------------------------------------------------------------+
++--------------------------------------------------------------------+
+| [=] Calculator                                                      |  <- toolbar
++--------------------------------------------------------------------+
+| [Date Difference]  [Add / Subtract]                                 |  <- sub-mode toggle
++--------------------------------------------------------------------+
+|                                                                      |
+|   START DATE                        END DATE                        |
+|   [ Jan  1 2024  v ] [cal]          [ Jun  4 2026  v ] [cal]       |
+|                                                                      |
+|                  [ Swap  <=>  ]                                      |
+|                                                                      |
+|   [ Business days only ]                                            |
+|                                                                      |
++--------------------------------------------------------------------+
+|                                                                      |
+|   885 days                                                          |  <- primary result (large)
+|                                                                      |
+|   126 weeks, 3 days                                                 |
+|   29 months, 3 days                                                 |
+|   2 years, 5 months, 3 days                                         |
+|   633 business days                                                 |
+|                                                                      |
++--------------------------------------------------------------------+
+|                         HISTORY                                     |
+|   Jan 1, 2024 to Jun 4, 2026 = 885 days                            |
+|   ...                                                               |
++--------------------------------------------------------------------+
 ```
 
-### Color Scheme (Consistent with Dark Theme)
+For Add/Subtract sub-mode:
+
+```
++--------------------------------------------------------------------+
+| [Date Difference]  [Add / Subtract]                                 |
++--------------------------------------------------------------------+
+|                                                                      |
+|   START DATE                                                         |
+|   [ Jan  1 2024  v ] [cal]                                          |
+|                                                                      |
+|   [+  Add  ]  [-  Subtract  ]                                       |
+|                                                                      |
+|   Years  [ 2 v ]   Months [ 5 v ]   Weeks [ 0 v ]   Days [ 3 v ]  |
+|                                                                      |
+|   [ Business days only ]                                            |
+|                                                                      |
++--------------------------------------------------------------------+
+|                                                                      |
+|   June 4, 2026                                                      |  <- primary result
+|   Wednesday                                                          |
+|                                                                      |
++--------------------------------------------------------------------+
+|                         HISTORY                                     |
+|   Jan 1, 2024 + 2y 5m 3d = Jun 4, 2026 (Wed)                      |
+|   ...                                                               |
++--------------------------------------------------------------------+
+```
+
+### Color Application (Consistent with Dark Theme)
 
 | Element | Color |
 |---------|-------|
-| Active category button | `#ff9500` (orange) |
-| Inactive category button | `#3a3a3a` |
-| Unit buttons | `#4a4a4a` |
+| Active sub-mode button | `#ff9500` (orange) |
+| Inactive sub-mode button | `#3a3a3a` |
+| Add/Subtract direction buttons | `#4a4a4a` / active `#ff9500` |
 | Swap button | `#5856d6` (purple) |
-| Input fields | `#1c1c1c` background |
+| Business days toggle (on) | `#ff9500` |
+| Business days toggle (off) | `#3a3a3a` |
+| Calendar popup button | `#4a4a4a` |
+| Primary result text | white, 28pt |
+| Secondary result rows | `#888888`, 13pt |
+| `QDateEdit` background | `#2c2c2e` |
 
 ---
 
-## Alternatives Considered
+## Core Module: `date_calc.py`
 
-### 1. Scientific Mode (Expanded)
+Follows the `core.py` pattern: pure functions, no UI imports, `ValueError` for invalid inputs.
 
-**Pros**: Standard mode already has basic trig functions; expanding to full scientific (logs, factorials, constants, hyperbolic functions) is a natural step.
-
-**Cons**: The current Standard mode with sin/cos/tan/inverse already covers most scientific needs. Adding more buttons would clutter the interface. Scientific calculators are also becoming less relevant as phone calculators and Wolfram Alpha serve that niche.
-
-**Decision**: Defer. The current trig panel is sufficient for most users.
-
-### 2. Date Calculation Mode
-
-**Pros**: Windows Calculator includes this. Useful for calculating days between dates, adding/subtracting time periods.
-
-**Cons**: Date calculations are complex (leap years, months of varying length, time zones). The use case is narrow compared to unit conversion. Most developers use programming libraries for date math rather than a calculator.
-
-**Decision**: Consider for future iteration, but lower priority than unit conversion.
-
-### 3. Graphing Mode
-
-**Pros**: Windows Calculator has this on their roadmap. Would differentiate the app.
-
-**Cons**: Extremely complex to implement well. Requires a plotting library integration and significant new UI. The desktop graphing calculator market is already served by Desmos, GeoGebra, and similar tools. Not aligned with the "quick calculations" use case.
-
-**Decision**: Out of scope. This would be a separate application feature, not a mode.
-
-### 4. Financial Mode (TVM Calculator)
-
-**Pros**: High value for professionals. HP 12C functionality is well-defined.
-
-**Cons**: Financial calculations (NPV, IRR, loan amortization) are domain-specific and complex. The target audience (developers, as evidenced by Programmer Mode) may not be the primary users. Excel and financial calculators already dominate this space.
-
-**Decision**: Consider for enterprise/professional version, but not a natural fit for a developer-focused calculator.
-
-### 5. Currency Conversion
-
-**Pros**: Highly practical for international users.
-
-**Cons**: Requires external API integration for live exchange rates. Adds network dependency and potential privacy concerns. Data freshness becomes a maintenance burden.
-
-**Decision**: Could be added as a sub-category of Unit Conversion later, but should not be the primary mode due to external dependency.
-
----
-
-## Why Unit Conversion Wins
-
-1. **Broadest appeal**: Useful for developers, students, engineers, and everyday users
-2. **Self-contained**: No external APIs or network dependencies
-3. **Proven demand**: Included in both Windows and macOS calculators
-4. **Architectural fit**: Same "canonical value + multiple representations" pattern as Programmer Mode
-5. **UI reuse**: Similar layout to Programmer Mode's base panels
-6. **Clear scope**: Well-defined conversion formulas, no ambiguity
-7. **Extensible**: Easy to add more categories and units over time
-
----
-
-## Implementation Notes
-
-### Core Module: `converter.py`
+Key functions:
 
 ```python
-# Pure conversion functions, similar to core.py pattern
-def meters_to_feet(meters: float) -> float:
-    return meters * 3.28084
-
-def celsius_to_fahrenheit(c: float) -> float:
-    return c * 9/5 + 32
-
-# Or a data-driven approach:
-CONVERSIONS = {
-    "length": {
-        "meter": 1.0,  # base unit
-        "foot": 0.3048,
-        "kilometer": 1000.0,
-        # ... multiply by factor to get base unit
-    }
-}
+def days_between(start: date, end: date) -> int: ...
+def business_days_between(start: date, end: date) -> int: ...
+def decompose_days(total_days: int) -> dict: ...  # weeks, months, years breakdown
+def add_duration(start: date, years: int, months: int, weeks: int, days: int) -> date: ...
+def add_business_days(start: date, days: int) -> date: ...
+def subtract_duration(start: date, years: int, months: int, weeks: int, days: int) -> date: ...
 ```
 
-### GUI Widget: `ConverterModeWidget`
-
-- Follows same pattern as `ProgrammerModeWidget`
-- Uses `QStackedWidget` for category panels (or single panel with dynamic unit buttons)
-- Real-time updates on `textChanged` signal (same as Programmer Mode base inputs)
-
-### History Integration
-
-- Reuse existing `CalculationHistory` class
-- Entry format: `1234.56 m = 4050.52 ft [Length]`
+All functions use Python's standard `datetime.date` type. No third-party libraries required.
 
 ---
 
-## Conclusion
+## Keyboard Shortcuts
 
-Unit Conversion Mode is the clear next step for this calculator application. It serves a broad user base, follows established UI patterns from the existing Programmer Mode, requires no external dependencies, and aligns with industry-standard calculator applications. The implementation complexity is moderate and well-scoped, making it achievable without architectural changes.
+| Key | Action |
+|-----|--------|
+| `F6` | Switch to Date Difference sub-mode |
+| `F7` | Switch to Add/Subtract sub-mode |
+| `Tab` | Move between date fields and spinboxes |
+| `Enter` / `=` | Record current result to history |
+| `Escape` | Reset all fields to today's date |
+| `Ctrl+Shift+S` | Swap start and end dates |
+
+F6/F7 continue the F-key convention established by Programmer Mode (F2-F5 for bases) and Converter Mode (F6-F13 for categories in the existing implementation).
+
+---
+
+## Alternatives Considered and Rejected
+
+### Scientific Mode (Expanded)
+
+The Standard mode already has sin, cos, tan, inverse trig, power, sqrt, and percent. Expanding further (logs, hyperbolic functions, factorials, constants like pi/e) would add more buttons to an already capable mode. The marginal value is low: users who need deeper scientific functions use Wolfram Alpha or a dedicated app. Scientific mode expansion is an incremental improvement, not a new mode.
+
+### Financial / TVM Mode
+
+Time Value of Money calculations (NPV, IRR, loan amortization, bond pricing) are high-value for financial professionals. However, the app's existing audience is developers (the Programmer mode is the most distinctively positioned feature). TVM mode would require a domain-specific UI quite different from the rest of the app, and the formulas (especially IRR, which is iterative) have no clean fit in the existing `core.py` pure-function model. This is a viable future mode for a "professional" tier but not the natural next step.
+
+### Graphing Mode
+
+Plotting functions requires either embedding a third-party widget (matplotlib in Qt, pyqtgraph) or building a custom renderer. Both paths add significant dependency weight and implementation complexity. Graphing is a full sub-application, not a calculator mode. Windows Calculator added this years after launch, and Desmos already dominates the web. Ruled out as out of scope.
+
+### Currency Conversion
+
+Currency conversion is the most-requested converter category that the existing Unit Converter mode does not include. However, live exchange rates require a network API, which introduces a dependency, a potential failure mode, and a privacy consideration. A static fallback would rapidly become stale. This is better addressed as an optional enhancement to the existing Converter mode (with a user-supplied API key) rather than a new standalone mode.
+
+---
+
+## Why Date Calculation Wins
+
+1. **Completes the Windows Calculator feature set**: Standard, Programmer, Unit Converter, Date Calculator are exactly the four modes Windows Calculator ships with. This is a well-validated set.
+
+2. **Zero new dependencies**: Python `datetime` is in the standard library. `QDateEdit` and `QCalendarWidget` are already part of PyQt6.
+
+3. **Clean architectural fit**: One new `date_calc.py` core module, one new `DateCalcModeWidget` class, one new sidebar entry. The pattern is identical to every other mode.
+
+4. **Genuine utility**: Project deadlines, contract terms, age calculations, days until events — these are concrete, everyday needs that users reach for a calculator to solve.
+
+5. **Business days feature differentiates it**: Most standalone date calculators on the web offer only calendar days. A business-days mode (skip weekends) adds meaningful value over a quick web search.
+
+6. **History entries are human-readable without ambiguity**: `"Jan 1, 2024 to Jun 4, 2026 = 885 days"` is self-contained, unlike a unit conversion entry which requires knowing the units were stored correctly.
 
 ---
 
 *Recommendation prepared: 2026-06-04*
-*Based on analysis of: gui.py, programmer_mode.md, core.py, and research on Windows Calculator, macOS Calculator, and online calculator platforms.*
+*Based on analysis of: gui.py, specs/programmer_mode.md, CLAUDE.md, and the existing ConverterModeWidget implementation, plus research on Windows Calculator, macOS Calculator, Android/iOS scientific calculator apps, and financial calculator applications.*
